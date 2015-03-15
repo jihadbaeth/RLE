@@ -121,7 +121,6 @@ public class RLEBitmapCompression {
         int w = img.getWidth();
         int h = img.getHeight();
         int[][] array = new int[w][h];
-        int[][] arrayRaster = new int[w][h];
  
         for (int j = 0; j < w; j++) {
             for (int k = 0; k < h; k++) {
@@ -133,8 +132,6 @@ public class RLEBitmapCompression {
         }
 
         try {
-
-            
              BufferedImage bufferImage2 = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
              for (int y = 0; y < h; y++) {
                 for (int x = 0; x < w; x++) {
@@ -142,7 +139,6 @@ public class RLEBitmapCompression {
                     bufferImage2.setRGB(x, y, array[x][y]);
 
                 }
-
              }
              Graphics g = bufferImage2.getGraphics();
              g.drawImage(bufferImage2, h, h, null);
@@ -151,8 +147,8 @@ public class RLEBitmapCompression {
              } catch (Exception ee) {
              ee.printStackTrace();
              }
-             
-        }
+          
+    }
 
     
 
