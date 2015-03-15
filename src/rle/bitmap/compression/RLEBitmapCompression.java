@@ -5,6 +5,7 @@
  */
 package rle.bitmap.compression;
 
+import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
@@ -32,14 +33,15 @@ public class RLEBitmapCompression {
 
     /**
      * @param args the command line arguments
+     * 
      */
     
-    
+    //@throws java.io.IOException
     public static void main(String[] args) throws IOException  {
         RLEBitmapCompression rle = new RLEBitmapCompression();
         rle.oneBitsBMPs();
-        rle.fourBitsBMPs();
-        rle.eightBitsBMPs();
+        //rle.fourBitsBMPs();
+        //rle.eightBitsBMPs();
    }
 
     public void fourBitsBMPs() throws IOException {
@@ -89,13 +91,23 @@ public class RLEBitmapCompression {
 
             }
         }
-        byte[] v = new byte[2];
+        byte[] v = new byte[1 << 8];
+ 
         for (int i = 0; i < v.length; ++i) {
-            v[i] = (byte) (i );
-            System.out.println(v[i]);
+            v[i] = (byte) (i*17);
+            //System.out.println(v[i]);
         }
-
-        ColorModel cm = new IndexColorModel(1, v.length, v, v, v);
+        Color[] colors = {Color.red, Color.green, Color.yellow,  
+                Color.black};  
+        byte[] reds = new byte[4];  
+        byte[] greens = new byte[4];  
+        byte[] blues = new byte[4];  
+        for (int i = 0; i < colors.length; i++) {  
+             reds[i] = (byte) colors[i].getRed();  
+             greens[i] = (byte) colors[i].getGreen();  
+             blues[i] = (byte) colors[i].getBlue();  
+        } 
+        ColorModel cm = new IndexColorModel(1, 2, reds, reds, reds);
         WritableRaster wr = cm.createCompatibleWritableRaster(w, h);
         BufferedImage out = new BufferedImage(cm, wr, false, null);
 
