@@ -10,6 +10,7 @@ import java.awt.Graphics;
 import java.awt.Graphics2D;
 import java.awt.Image;
 import java.awt.Transparency;
+import java.awt.Window;
 import java.awt.color.ColorSpace;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
@@ -39,9 +40,10 @@ public class RLEBitmapCompression {
     //@throws java.io.IOException
     public static void main(String[] args) throws IOException  {
         RLEBitmapCompression rle = new RLEBitmapCompression();
+
         rle.oneBitsBMPs();
-        //rle.fourBitsBMPs();
-        //rle.eightBitsBMPs();
+        rle.fourBitsBMPs();
+        rle.eightBitsBMPs();
    }
 
     public void fourBitsBMPs() throws IOException {
