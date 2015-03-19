@@ -24,6 +24,14 @@ import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.IOException;
+import java.util.ArrayList;
+import javax.swing.JFrame;
+import org.jfree.chart.ChartFactory;
+import org.jfree.chart.ChartPanel;
+import org.jfree.chart.JFreeChart;
+import org.jfree.chart.plot.PlotOrientation;
+import org.jfree.data.xy.DefaultXYDataset;
+import org.jfree.data.xy.XYBarDataset;
 import javax.imageio.ImageIO;
 
 /**
@@ -163,6 +171,55 @@ public class RLEBitmapCompression {
              }
           
     }
+    public static ArrayList<int[]> imageHistogram(BufferedImage input) {
+ 
+    int[] rhistogram = new int[256];
+    int[] ghistogram = new int[256];
+    int[] bhistogram = new int[256];
+ 
+    for(int i=0; i<rhistogram.length; i++) rhistogram[i] = 0;
+    for(int i=0; i<ghistogram.length; i++) ghistogram[i] = 0;
+    for(int i=0; i<bhistogram.length; i++) bhistogram[i] = 0;
+ 
+    for(int i=0; i<input.getWidth(); i++) {
+        for(int j=0; j<input.getHeight(); j++) {
+ 
+            int red = new Color(input.getRGB (i, j)).getRed();
+            int green = new Color(input.getRGB (i, j)).getGreen();
+            int blue = new Color(input.getRGB (i, j)).getBlue();
+ 
+            // Increase the values of colors
+            rhistogram[red]++; ghistogram[green]++; bhistogram[blue]++;
+ 
+        }
+    }
+ 
+    ArrayList<int[]> hist = new ArrayList<int[]>();
+    hist.add(rhistogram);
+    hist.add(ghistogram);
+    hist.add(bhistogram);
+ 
+    return hist;
+ 
+}
+    public void drawHistogram(double[][] data)
+    {
+
+      double[][] valuepairs = data;
+ 
+      DefaultXYDataset set = new DefaultXYDataset();
+      set.addSeries("Values",valuepairs);      
+      XYBarDataset barset = new XYBarDataset(set,0.8);
+      JFreeChart chart = ChartFactory.createXYBarChart(
+         "Bars from arrays","x",false,"y",
+         barset,PlotOrientation.VERTICAL,true, true, false);
+      JFrame frame = new JFrame("Test");
+      frame.setContentPane(new ChartPanel(chart));
+      frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+      frame.pack();
+      frame.setVisible(true);
+    }
+    
 
     
 
