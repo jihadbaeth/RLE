@@ -108,13 +108,23 @@ public class RLEBitmapCompression {
         int w = in.getWidth(), h = in.getHeight();
 
         int[][] array = new int[w][h];
+        int [] data = new int[w*h];
+        int counter =0;
+        
         for (int j = 0; j < w; j++) {
             for (int k = 0; k < h; k++) {
                 array[j][k] = in.getRGB(j, k);
+                data[counter] = in.getRGB(j,k);
+                counter++;
                 //System.out.println("RGB Array" + array[j][j]);
 
             }
         }
+        System.out.println("the one bit");
+        getRunLengthByRow(array);
+        getRunLengthByColumn(array);
+        getRunLengthZigzag(array);
+        System.out.println("finish");
         byte[] v = new byte[1 << 8];
 
         for (int i = 0; i < v.length; ++i) {
@@ -157,7 +167,7 @@ public class RLEBitmapCompression {
         int w = img.getWidth();
         int h = img.getHeight();
         int[][] array = new int[w][h];
-        double[] data = new double[w*h];
+        int[] data = new int[w*h];
         
         int counter = 0;
         for (int j = 0; j < w; j++) {
@@ -169,7 +179,8 @@ public class RLEBitmapCompression {
 
             }
         }
-        drawHistogram(data);
+        //getRunLength(data);
+        //drawHistogram(data);
         try {
             BufferedImage bufferImage2 = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
             for (int y = 0; y < h; y++) {
@@ -268,5 +279,234 @@ public class RLEBitmapCompression {
         frame.pack();
         frame.setVisible(true);
     }
+    
+    public byte[] getRunLengthZigzag(int [][] imageByteArray){
+    	System.out.println("Getting run lenght by Zigzag");
+        ByteArrayOutputStream dest = new ByteArrayOutputStream();  
+        byte lastByte = (byte) imageByteArray[0][0];
+        int matchCount = 1;
+        System.out.println("Length of array : "+imageByteArray[0].length * imageByteArray[1].length);
+        int count =0;    	    	
+    	int i=0,j=0;  
+    	int r=0;
+    	int c=0; 
+    	int dir=0;
+		int rows = imageByteArray[0].length;
+		int cols = imageByteArray[1].length;
+    	while(r< imageByteArray[0].length && c< imageByteArray[1].length)
+    	{
+    	//System.out.println( r+" -> "+c);
+          byte thisByte = (byte) imageByteArray[r][c];
+          if (lastByte == thisByte) {
+              matchCount++;
+          }
+          else {
+              dest.write((byte)matchCount);  
+              dest.write((byte)lastByte);
+              //System.out.println("Number of repetitions: "+ matchCount);
+              count++;                
+              matchCount=1;
+              lastByte = thisByte;                
+          }     
+    		if (dir == 1) {
+    					if (c == cols - 1) {
+    						r++;
+    						dir = -1;
+    					} else if (r == 0) {
+    						c++;
+    						dir = -1;
+    					} else {
+    						r--;
+    						c++;
+    					}
+    				} else {
+    					if (r == rows - 1) {
+    						c++;
+    						dir = 1;
+    					} else if (c == 0) {
+    						r++;
+    						dir = 1;
+    					} else {
+    						c--;
+    						r++;
+    					}
+    				}
+    			}	
+    	    	 
+//        while(i < imageByteArray.length){  
+//     
+//            System.out.println( i+" -> "+j);
+//            byte thisByte = (byte) imageByteArray[i][j];
+//            if (lastByte == thisByte) {
+//                matchCount++;
+//            }
+//            else {
+//                dest.write((byte)matchCount);  
+//                dest.write((byte)lastByte);
+//                //System.out.println("Number of repetitions: "+ matchCount);
+//                count++;                
+//                matchCount=1;
+//                lastByte = thisByte;                
+//            }     
+//            if(i==imageByteArray.length-1){  
+//                i = j+1; j = imageByteArray.length-1;  
+//            }  
+//            else if(j==0){  
+//                j = i+1;   
+//                i = 0;  
+//            }  
+//            else {  
+//                i++;  
+//                j--;  
+//            }  
+//        }  
+        System.out.println("Number of records: "+ count );
+        dest.write((byte)matchCount);  
+        dest.write((byte)lastByte);
+        System.out.println("**** Finished Getting run lenght by Zigzag ****");
+        return dest.toByteArray();
+    }
+    
+    
+    
+    public byte[] getRunLengthByRow(int [][] imageByteArray){
+    	System.out.println("Getting run lenght by row");
+        ByteArrayOutputStream dest = new ByteArrayOutputStream();  
+        byte lastByte = (byte) imageByteArray[0][0];
+        int matchCount = 1;
+        System.out.println("Length of array : "+imageByteArray[0].length * imageByteArray[1].length);
+        int count =0;
+        for(int i=1; i < imageByteArray[0].length; i++){
+        	for (int j = 0; j < imageByteArray[1].length; j++) {
+				
+			
+            byte thisByte = (byte) imageByteArray[i][j];
+            if (lastByte == thisByte) {
+                matchCount++;
+            }
+            else {
+                dest.write((byte)matchCount);  
+                dest.write((byte)lastByte);
+                //System.out.println("Number of repetitions: "+ matchCount);
+                count++;
+                
+                matchCount=1;
+                lastByte = thisByte;
+                
+            }
+        	}
+        }
+        System.out.println("Number of records: "+ count );
+        dest.write((byte)matchCount);  
+        dest.write((byte)lastByte);
+        System.out.println("**** Finished Getting run lenght by row ****");
+        return dest.toByteArray();
+    }
+    
+    
+    public byte[] getRunLengthByColumn(int [][] imageByteArray){
+    	System.out.println("Getting run lenght by Column");
+        ByteArrayOutputStream dest = new ByteArrayOutputStream();  
+        byte lastByte = (byte) imageByteArray[0][0];
+        int matchCount = 1;
+        System.out.println("Length of array : "+imageByteArray[0].length * imageByteArray[1].length);
+        int count =0;
+        for(int i=1; i < imageByteArray[0].length; i++){
+        	for (int j = 0; j < imageByteArray[1].length; j++) {
+				
+			
+            byte thisByte = (byte) imageByteArray[j][i];
+            if (lastByte == thisByte) {
+                matchCount++;
+            }
+            else {
+                dest.write((byte)matchCount);  
+                dest.write((byte)lastByte);
+                //System.out.println("Number of repetitions: "+ matchCount);
+                count++;
+                
+                matchCount=1;
+                lastByte = thisByte;
+                
+            }
+        	}
+        }
+        System.out.println("Number of records: "+ count );
+        dest.write((byte)matchCount);  
+        dest.write((byte)lastByte);
+        System.out.println("**** Finished Getting run lenght by Column ****");
+        return dest.toByteArray();
+
+
+    }
+    
+//    public String getRunLength(int[] imageByteArray){
+//        StringBuffer dest = new StringBuffer();        
+//        for(int i =0; i < imageByteArray.length; i++){
+//            int runlength = 1;
+//            while(i+1 < imageByteArray.length && imageByteArray[i] == imageByteArray[i+1]){
+//                runlength++;
+//                i++;
+//
+//            }     
+//
+//            System.out.println("Number of occurance : "+runlength);
+//            dest.append(runlength);  
+//
+//            dest.append(imageByteArray[i]);
+//
+//        }
+//        return dest.toString();
+//    }
+    
+    
+    
+	  	public String coderRLE(String text) {
+		        String res = new String();
+		        char[] charArray = text.toCharArray();
+		        char caractere = 0;
+		        int num = 0;
+		        int i = 0;
+		        for (char c : charArray) {
+		            if (c != caractere && i != 0) {
+		                if (num >= 2) {
+		                    res += num;
+		                    res += caractere;
+		                } else {
+		                    res += caractere;
+		                }
+		                num = 1;
+		            } else {
+		                num++;
+		            }
+		            caractere = c;
+		            i++;
+		        }
+		        if (num >= 2) {
+		            res += num;
+		            res += caractere;
+		        } else {
+		            res += caractere;
+		        }
+		        return res;
+		}
+		
+		    
+		public String decoderRLE(String text) {
+		        String res = new String();
+		        char[] charArray = text.toCharArray();
+		        for (int i = 0;i<charArray.length-1;i++) {
+		            char s = charArray[i];
+		            if (!Character.isDigit(s)) {
+		                res += s;
+		            } else {
+		                int num = Integer.parseInt(String.valueOf(s));
+		                for (int j = 0; j < num - 1; j++) {
+		                    res += charArray[i+1];
+		                }
+		            }
+		        }
+		        return res;
+		    }
 
 }
