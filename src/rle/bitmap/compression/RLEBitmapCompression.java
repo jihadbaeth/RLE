@@ -23,18 +23,28 @@ import java.awt.image.WritableRaster;
 import java.io.ByteArrayInputStream;
 import java.io.ByteArrayOutputStream;
 import java.io.File;
+import java.io.FileInputStream;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.ObjectInputStream;
+import java.io.ObjectOutputStream;
 import java.math.BigDecimal;
 import java.util.ArrayList;
 import java.util.Random;
+
 import javax.swing.JFrame;
+
+import org.apache.commons.io.IOUtils;
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.PlotOrientation;
 import org.jfree.data.xy.DefaultXYDataset;
 import org.jfree.data.xy.XYBarDataset;
+
 import javax.imageio.ImageIO;
+
 import org.jfree.data.statistics.HistogramDataset;
 import org.jfree.data.statistics.SimpleHistogramBin;
 import org.jfree.data.statistics.SimpleHistogramDataset;
@@ -51,15 +61,22 @@ public class RLEBitmapCompression {
      */
     //@throws java.io.IOException
     public static void main(String[] args) throws IOException {
+    	long startTime = System.currentTimeMillis();
         RLEBitmapCompression rle = new RLEBitmapCompression();
 
         rle.oneBitsBMPs();
-        rle.fourBitsBMPs();
-        rle.eightBitsBMPs();
-    }
+        //rle.fourBitsBMPs();
+        //rle.eightBitsBMPs();
+        rle.decompress();
+        System.out.print("this operation has taken  ");
+        System.out.print(System.currentTimeMillis()-startTime);
+        System.out.println(" milli second");
+    }	
 
     public void fourBitsBMPs() throws IOException {
+    	
         BufferedImage in = ImageIO.read(new File("D:\\baboon_4bit.bmp"));
+        String fileName = new File("D:\\baboon_4bit.bmp").getName();
         int w = in.getWidth(), h = in.getHeight();
         int counter = 0;
         int[][] array = new int[w][h];
@@ -79,7 +96,13 @@ public class RLEBitmapCompression {
 
             }
         }
-        drawHistogram(data);
+        System.out.println("the Four bit");
+        getRunLengthByRow(array);
+        getRunLengthByColumn(array);
+        getRunLengthZigzag(array);
+        createCompressedFile(getRunLengthByRow(array),fileName);
+
+        //drawHistogram(data);
         byte[] v = new byte[1 << 4];
         for (int i = 0; i < v.length; ++i) {
             v[i] = (byte) (i * 4);
@@ -97,6 +120,7 @@ public class RLEBitmapCompression {
             }
 
         }
+        
         Graphics2D g = out.createGraphics();
         g.drawImage(out, 0, 0, null);
         g.dispose();
@@ -104,6 +128,9 @@ public class RLEBitmapCompression {
     }
 
     public void oneBitsBMPs() throws IOException {
+    	
+    	System.out.println("Name of file is !!"+new File("D:\\baboon_BW.bmp").getName());
+    	String fileName = new File("D:\\baboon_BW.bmp").getName();
         BufferedImage in = ImageIO.read(new File("D:\\baboon_BW.bmp"));
         int w = in.getWidth(), h = in.getHeight();
 
@@ -121,6 +148,8 @@ public class RLEBitmapCompression {
             }
         }
         System.out.println("the one bit");
+        
+        createCompressedFile(getRunLengthByRow(array),fileName);
         getRunLengthByRow(array);
         getRunLengthByColumn(array);
         getRunLengthZigzag(array);
@@ -144,14 +173,37 @@ public class RLEBitmapCompression {
         ColorModel cm = new IndexColorModel(1, 2, reds, reds, reds);
         WritableRaster wr = cm.createCompatibleWritableRaster(w, h);
         BufferedImage out = new BufferedImage(cm, wr, false, null);
-
+//        byte exp [] = new byte[262144];
+        int index =0;
         for (int y = 0; y < h; y++) {
             for (int x = 0; x < w; x++) {
                 int Pixel = array[x][y] << 16 | array[x][y] << 8 | array[x][y];
-                out.setRGB(x, y, array[x][y]);
+//                String pixel =Integer.toString(Pixel);
+//                if(Pixel == -16777216 )
+//                {
+//                	exp [index]= 1;
+//                }
+//                else
+//                {
+//                	exp [index]= 0;
+//                	//System.out.println("What's going on? "+Pixel);
+//                }
+                  index++;
+                  out.setRGB(x, y, array[x][y]);
             }
+                }
 
-        }
+        
+        
+//        System.out.println("*****************");
+//        ByteArrayOutputStream baos = new ByteArrayOutputStream();
+//        baos.write(getRunLengthByRow(array));
+//        byte[] array1 = baos.toByteArray();
+//        System.out.println("rle length: " + getRunLengthByRow(array).length);
+//        System.out.println("array length: " + array.length);
+//        System.out.println("*****************");       
+        
+//        createCompressedFile(exp,"exp");
         Graphics2D g = out.createGraphics();
         g.drawImage(out, 0, 0, null);
         g.dispose();
@@ -160,6 +212,7 @@ public class RLEBitmapCompression {
 
     public void eightBitsBMPs() throws IOException {
         //Image image = ImageIO.read(new File("D:\\baboon_8bit.bmp"));
+    	String fileName = new File("D:\\baboon_8bit.bmp").getName();
         BufferedImage img = ImageIO.read(new File("D:\\baboon_8bit.bmp"));
         //Graphics g = img.createGraphics();
         //g.drawImage(image, 0, 0, null);
@@ -179,6 +232,12 @@ public class RLEBitmapCompression {
 
             }
         }
+        System.out.println("the Eight bit");
+        getRunLengthByRow(array);
+        getRunLengthByColumn(array);
+        getRunLengthZigzag(array);
+        createCompressedFile(getRunLengthByRow(array),fileName);
+
         //getRunLength(data);
         //drawHistogram(data);
         try {
@@ -376,18 +435,24 @@ public class RLEBitmapCompression {
         int matchCount = 1;
         System.out.println("Length of array : "+imageByteArray[0].length * imageByteArray[1].length);
         int count =0;
+        //byte [][]myrle = new byte[262144][262144];
         for(int i=1; i < imageByteArray[0].length; i++){
         	for (int j = 0; j < imageByteArray[1].length; j++) {
 				
 			
             byte thisByte = (byte) imageByteArray[i][j];
+            //System.out.print("Array value: "+imageByteArray[i][j]);
+            //System.out.println("  This byte value: "+thisByte);
             if (lastByte == thisByte) {
                 matchCount++;
             }
             else {
+                //myrle.concat(Integer.toString(matchCount));
+                //myrle.concat(Integer.toString(lastByte));
                 dest.write((byte)matchCount);  
                 dest.write((byte)lastByte);
-                //System.out.println("Number of repetitions: "+ matchCount);
+                //System.out.print(lastByte);
+                //System.out.println("  ---Number of repetitions: "+ matchCount);
                 count++;
                 
                 matchCount=1;
@@ -395,7 +460,10 @@ public class RLEBitmapCompression {
                 
             }
         	}
+        	
         }
+        
+       
         System.out.println("Number of records: "+ count );
         dest.write((byte)matchCount);  
         dest.write((byte)lastByte);
@@ -439,26 +507,7 @@ public class RLEBitmapCompression {
 
 
     }
-    
-//    public String getRunLength(int[] imageByteArray){
-//        StringBuffer dest = new StringBuffer();        
-//        for(int i =0; i < imageByteArray.length; i++){
-//            int runlength = 1;
-//            while(i+1 < imageByteArray.length && imageByteArray[i] == imageByteArray[i+1]){
-//                runlength++;
-//                i++;
-//
-//            }     
-//
-//            System.out.println("Number of occurance : "+runlength);
-//            dest.append(runlength);  
-//
-//            dest.append(imageByteArray[i]);
-//
-//        }
-//        return dest.toString();
-//    }
-    
+
     
     
 	  	public String coderRLE(String text) {
@@ -508,5 +557,112 @@ public class RLEBitmapCompression {
 		        }
 		        return res;
 		    }
+		
+		public void createCompressedFile(byte [] rle, String fileName)
+		{
+			FileOutputStream fop = null;
+			File file;
+			file = new File("d:/"+fileName+".tmp");
+			try {
+				fop = new FileOutputStream(file);
 
+				try {
+					fop.write(rle);
+					fop.flush();
+					fop.close();
+				} catch (IOException e) {
+					// TODO Auto-generated catch block
+					e.printStackTrace();
+				}
+
+			} catch (FileNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+ 
+		
+			try
+	        {
+	            ObjectOutputStream myStream = new ObjectOutputStream(new FileOutputStream("d:/"+fileName+".dat"));
+	            myStream.writeObject(rle);
+	            myStream.close();
+	        } 
+	        catch (FileNotFoundException e) 
+	        {
+	        } 
+	        catch (IOException e) 
+	        {
+	        }
+			try {
+				
+				FileOutputStream output = new FileOutputStream(new File("D:\\"+ fileName+".jrle"));
+				IOUtils.write(rle, output);
+			} catch (FileNotFoundException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			} catch (IOException e) {
+				// TODO Auto-generated catch block
+				e.printStackTrace();
+			}
+			
+		}
+		
+		public void readCompressedFile()
+		{
+//			try {
+//				byte[] bytes = IOUtils.toByteArray();
+//			} catch (FileNotFoundException e) {
+//				// TODO Auto-generated catch block
+//				e.printStackTrace();
+//			} catch (IOException e) {
+//				// TODO Auto-generated catch block
+//				e.printStackTrace();
+//			}
+			
+			
+		}
+		
+
+
+	public void decompress ()
+	{
+        // reading of the binary file and placing it into an array 
+        try
+        {
+            ObjectInputStream mySecondStream = new ObjectInputStream(new FileInputStream("D:\\baboon_BW.bmp.dat"));
+            byte[] array = (byte[]) mySecondStream.readObject();
+            for(int i=0; i<array.length; i++)
+            {
+                System.out.println(array[i]);
+            }
+        } 
+        catch (FileNotFoundException e) 
+        {
+        } catch (IOException e) 
+        {
+        } catch (ClassNotFoundException e) {
+            // TODO Auto-generated catch block
+            e.printStackTrace();
+        }
+ 
+	}
 }
+//public String getRunLength(int[] imageByteArray){
+//  StringBuffer dest = new StringBuffer();        
+//  for(int i =0; i < imageByteArray.length; i++){
+//      int runlength = 1;
+//      while(i+1 < imageByteArray.length && imageByteArray[i] == imageByteArray[i+1]){
+//          runlength++;
+//          i++;
+//
+//      }     
+//
+//      System.out.println("Number of occurance : "+runlength);
+//      dest.append(runlength);  
+//
+//      dest.append(imageByteArray[i]);
+//
+//  }
+//  return dest.toString();
+//}
+
