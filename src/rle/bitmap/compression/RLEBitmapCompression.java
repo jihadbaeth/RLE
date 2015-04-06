@@ -8,46 +8,37 @@ package rle.bitmap.compression;
 import java.awt.Color;
 import java.awt.Graphics;
 import java.awt.Graphics2D;
-import java.awt.Image;
-import java.awt.Transparency;
-import java.awt.Window;
-import java.awt.color.ColorSpace;
 import java.awt.image.BufferedImage;
 import java.awt.image.ColorModel;
-import java.awt.image.ComponentColorModel;
-import java.awt.image.DataBuffer;
 import java.awt.image.IndexColorModel;
-import java.awt.image.Raster;
-import java.awt.image.RenderedImage;
 import java.awt.image.WritableRaster;
-import java.io.ByteArrayInputStream;
-import java.io.ByteArrayOutputStream;
 import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileNotFoundException;
 import java.io.FileOutputStream;
+import java.io.FilenameFilter;
 import java.io.IOException;
 import java.io.ObjectInputStream;
 import java.io.ObjectOutputStream;
-import java.math.BigDecimal;
-import java.util.ArrayList;
-import java.util.Random;
+import java.util.Arrays;
 
+import javax.imageio.ImageIO;
 import javax.swing.JFrame;
 
-import org.apache.commons.io.IOUtils;
+import me.lemire.integercompression.Composition;
+import me.lemire.integercompression.FastPFOR;
+import me.lemire.integercompression.IntWrapper;
+import me.lemire.integercompression.IntegerCODEC;
+import me.lemire.integercompression.VariableByte;
+
 import org.jfree.chart.ChartFactory;
 import org.jfree.chart.ChartPanel;
 import org.jfree.chart.JFreeChart;
 import org.jfree.chart.plot.PlotOrientation;
-import org.jfree.data.xy.DefaultXYDataset;
-import org.jfree.data.xy.XYBarDataset;
-
-import javax.imageio.ImageIO;
-
 import org.jfree.data.statistics.HistogramDataset;
-import org.jfree.data.statistics.SimpleHistogramBin;
-import org.jfree.data.statistics.SimpleHistogramDataset;
+import org.jfree.data.statistics.HistogramType;
+
+import com.rapplogic.xbee.util.IntArrayOutputStream;
 
 /**
  *
@@ -55,614 +46,824 @@ import org.jfree.data.statistics.SimpleHistogramDataset;
  */
 public class RLEBitmapCompression {
 
-    /**
-     * @param args the command line arguments
-     *
-     */
-    //@throws java.io.IOException
-    public static void main(String[] args) throws IOException {
-    	long startTime = System.currentTimeMillis();
-        RLEBitmapCompression rle = new RLEBitmapCompression();
+	/**
+	 * @param args
+	 *            the command line arguments
+	 *
+	 */
+	// @throws java.io.IOException
+	public static void main(String[] args) throws IOException {
+		long startTime = System.currentTimeMillis();
+		RLEBitmapCompression rle = new RLEBitmapCompression();
+		System.out.println("Input data:");
+		File path = new File("./4bits/");
+		File[] files = path.listFiles(new FilenameFilter() {
+			@Override
+			public boolean accept(File dir, String name) {
+				return name.endsWith(".bmp");
+			}
+		});
+		Arrays.sort(files);
 
-        rle.oneBitsBMPs();
-        //rle.fourBitsBMPs();
-        //rle.eightBitsBMPs();
-        rle.decompress();
-        System.out.print("this operation has taken  ");
-        System.out.print(System.currentTimeMillis()-startTime);
-        System.out.println(" milli second");
-    }	
+		for (File file : files) {
+			System.out.println("Executing " + file.getName() + " ...");
+			file.getAbsolutePath();
+			rle.fourBitsBMPsColumn(file.getAbsolutePath());
+			rle.fourBitsBMPsRowByRow(file.getAbsolutePath());
+			rle.fourBitsBMPsZigzag(file.getAbsolutePath());
 
-    public void fourBitsBMPs() throws IOException {
-    	
-        BufferedImage in = ImageIO.read(new File("D:\\baboon_4bit.bmp"));
-        String fileName = new File("D:\\baboon_4bit.bmp").getName();
-        int w = in.getWidth(), h = in.getHeight();
-        int counter = 0;
-        int[][] array = new int[w][h];
-        double[] data = new double[w*h];
-        System.out.println("Size of array is: "+array.length);
-        for (int j = 0; j < w; j++) {
-            for (int k = 0; k < h; k++) {
-                
-                array[j][k] = in.getRGB(j, k);
-                
-                
-                data[counter]=in.getRGB(j, k);
-                //System.out.print("Int Array position ("+j+ "-"+k+") is:" + array[j][k]);
-                //System.out.print("    Double Array: " + data[counter]);
-                //System.out.println("    RGB position("+j+ "-"+k+") is:" + in.getRGB(j, k));
-                counter++;
+		}
+		path = new File("./8bits/");
+		files = path.listFiles(new FilenameFilter() {
+			@Override
+			public boolean accept(File dir, String name) {
+				return name.endsWith(".bmp");
+			}
+		});
+		Arrays.sort(files);
 
-            }
-        }
-        System.out.println("the Four bit");
-        getRunLengthByRow(array);
-        getRunLengthByColumn(array);
-        getRunLengthZigzag(array);
-        createCompressedFile(getRunLengthByRow(array),fileName);
+		for (File file : files) {
+			System.out.println("Executing " + file.getName() + " ...");
+			file.getAbsolutePath();
+			rle.eightBitsBMPsColumn(file.getAbsolutePath());
+			rle.eightBitsBMPsZigzag(file.getAbsolutePath());
+			rle.eightBitsBMPsRowByRow(file.getAbsolutePath());
 
-        //drawHistogram(data);
-        byte[] v = new byte[1 << 4];
-        for (int i = 0; i < v.length; ++i) {
-            v[i] = (byte) (i * 4);
-            //System.out.println(v[i]);
-        }
+		}
+		path = new File("./1bit/");
+		files = path.listFiles(new FilenameFilter() {
+			@Override
+			public boolean accept(File dir, String name) {
+				return name.endsWith(".bmp");
+			}
+		});
+		Arrays.sort(files);
 
-        ColorModel cm = new IndexColorModel(4, v.length, v, v, v);
-        WritableRaster wr = cm.createCompatibleWritableRaster(w, h);
-        BufferedImage out = new BufferedImage(cm, wr, false, null);
+		for (File file : files) {
+			System.out.println("Executing " + file.getName() + " ...");
+			file.getAbsolutePath();
+			rle.oneBitsBMPsRowByRow(file.getAbsolutePath());
+			rle.oneBitsBMPsColumn(file.getAbsolutePath());
+			rle.oneBitsBMPsZigzag(file.getAbsolutePath());
+		}
 
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int Pixel = array[x][y] << 16 | array[x][y] << 8 | array[x][y];
-                out.setRGB(x, y, array[x][y]);
-            }
+		System.out.print("this operation has taken  ");
+		System.out.print(System.currentTimeMillis() - startTime);
+		System.out.println(" milli second");
+	}
 
-        }
-        
-        Graphics2D g = out.createGraphics();
-        g.drawImage(out, 0, 0, null);
-        g.dispose();
-        ImageIO.write(in, "bmp", new File("D:\\saved4.bmp"));
-    }
+	public void fourBitsBMPsZigzag(String path) throws IOException {
 
-    public void oneBitsBMPs() throws IOException {
-    	
-    	System.out.println("Name of file is !!"+new File("D:\\baboon_BW.bmp").getName());
-    	String fileName = new File("D:\\baboon_BW.bmp").getName();
-        BufferedImage in = ImageIO.read(new File("D:\\baboon_BW.bmp"));
-        int w = in.getWidth(), h = in.getHeight();
+		BufferedImage in = ImageIO.read(new File(path));
+		String fileName = new File(path).getName();
+		int w = in.getWidth(), h = in.getHeight();
+		int[][] array = new int[w][h];
+		double[] data = new double[w * h];
+		int counter = 0;
+		for (int j = 0; j < w; j++) {
+			for (int k = 0; k < h; k++) {
+				array[j][k] = in.getRGB(j, k);
+				data[counter] = in.getRGB(j, k);
+				counter++;
+			}
+		}
+		System.out.println("___****the Four bit By Zigzag****___");
+		System.out.println("File Name: " + fileName);
+		createCompressedFile(getRunLengthZigzag(array), path);
+		drawHistogram(data, fileName);
+		byte[] v = new byte[1 << 4];
+		for (int i = 0; i < v.length; ++i) {
+			v[i] = (byte) (i * 4);
+		}
+		ColorModel cm = new IndexColorModel(4, v.length, v, v, v);
+		WritableRaster wr = cm.createCompatibleWritableRaster(w, h);
+		BufferedImage out = new BufferedImage(cm, wr, false, null);
+		int[][] tempo = zigzagReorder(decompress(getRunLengthZigzag(array),
+				path));
 
-        int[][] array = new int[w][h];
-        int [] data = new int[w*h];
-        int counter =0;
-        
-        for (int j = 0; j < w; j++) {
-            for (int k = 0; k < h; k++) {
-                array[j][k] = in.getRGB(j, k);
-                data[counter] = in.getRGB(j,k);
-                counter++;
-                //System.out.println("RGB Array" + array[j][j]);
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				int Pixel = array[x][y] << 16 | array[x][y] << 8 | array[x][y];
+				out.setRGB(x, y, tempo[x][y]);
+			}
 
-            }
-        }
-        System.out.println("the one bit");
-        
-        createCompressedFile(getRunLengthByRow(array),fileName);
-        getRunLengthByRow(array);
-        getRunLengthByColumn(array);
-        getRunLengthZigzag(array);
-        System.out.println("finish");
-        byte[] v = new byte[1 << 8];
+		}
 
-        for (int i = 0; i < v.length; ++i) {
-            v[i] = (byte) (i * 17);
-            //System.out.println(v[i]);
-        }
-        Color[] colors = {Color.red, Color.green, Color.yellow,
-            Color.black};
-        byte[] reds = new byte[4];
-        byte[] greens = new byte[4];
-        byte[] blues = new byte[4];
-        for (int i = 0; i < colors.length; i++) {
-            reds[i] = (byte) colors[i].getRed();
-            greens[i] = (byte) colors[i].getGreen();
-            blues[i] = (byte) colors[i].getBlue();
-        }
-        ColorModel cm = new IndexColorModel(1, 2, reds, reds, reds);
-        WritableRaster wr = cm.createCompatibleWritableRaster(w, h);
-        BufferedImage out = new BufferedImage(cm, wr, false, null);
-//        byte exp [] = new byte[262144];
-        int index =0;
-        for (int y = 0; y < h; y++) {
-            for (int x = 0; x < w; x++) {
-                int Pixel = array[x][y] << 16 | array[x][y] << 8 | array[x][y];
-//                String pixel =Integer.toString(Pixel);
-//                if(Pixel == -16777216 )
-//                {
-//                	exp [index]= 1;
-//                }
-//                else
-//                {
-//                	exp [index]= 0;
-//                	//System.out.println("What's going on? "+Pixel);
-//                }
-                  index++;
-                  out.setRGB(x, y, array[x][y]);
-            }
-                }
+		Graphics2D g = out.createGraphics();
+		g.drawImage(out, 0, 0, null);
+		g.dispose();
+		ImageIO.write(in, "bmp", new File("./4bits/4bitZigzag" + fileName));
+	}
 
-        
-        
-//        System.out.println("*****************");
-//        ByteArrayOutputStream baos = new ByteArrayOutputStream();
-//        baos.write(getRunLengthByRow(array));
-//        byte[] array1 = baos.toByteArray();
-//        System.out.println("rle length: " + getRunLengthByRow(array).length);
-//        System.out.println("array length: " + array.length);
-//        System.out.println("*****************");       
-        
-//        createCompressedFile(exp,"exp");
-        Graphics2D g = out.createGraphics();
-        g.drawImage(out, 0, 0, null);
-        g.dispose();
-        ImageIO.write(out, "bmp", new File("D:\\saved1.bmp"));
-    }
+	public void fourBitsBMPsColumn(String path) throws IOException {
 
-    public void eightBitsBMPs() throws IOException {
-        //Image image = ImageIO.read(new File("D:\\baboon_8bit.bmp"));
-    	String fileName = new File("D:\\baboon_8bit.bmp").getName();
-        BufferedImage img = ImageIO.read(new File("D:\\baboon_8bit.bmp"));
-        //Graphics g = img.createGraphics();
-        //g.drawImage(image, 0, 0, null);
-        //g.dispose();
-        int w = img.getWidth();
-        int h = img.getHeight();
-        int[][] array = new int[w][h];
-        int[] data = new int[w*h];
-        
-        int counter = 0;
-        for (int j = 0; j < w; j++) {
-            for (int k = 0; k < h; k++) {
-                array[j][k] = img.getRGB(j, k);
-                data[counter]=img.getRGB(j, k);
-                //System.out.println("RGB Array"+array[j][j]);
-                counter++;
+		BufferedImage in = ImageIO.read(new File(path));
+		String fileName = new File(path).getName();
+		int w = in.getWidth(), h = in.getHeight();
+		int[][] array = new int[w][h];
+		double[] data = new double[w * h];
+		int counter = 0;
+		for (int j = 0; j < w; j++) {
+			for (int k = 0; k < h; k++) {
+				array[j][k] = in.getRGB(j, k);
+				data[counter] = in.getRGB(j, k);
+				counter++;
+			}
+		}
+		System.out.println("___**** The Four bit By Column****___");
+		createCompressedFile(getRunLengthByColumn(array), path);
+		drawHistogram(data, fileName);
+		byte[] v = new byte[1 << 4];
+		for (int i = 0; i < v.length; ++i) {
+			v[i] = (byte) (i * 4);
+		}
+		ColorModel cm = new IndexColorModel(4, v.length, v, v, v);
+		WritableRaster wr = cm.createCompatibleWritableRaster(w, h);
+		BufferedImage out = new BufferedImage(cm, wr, false, null);
+		int[][] tempo = columnByColumnOdrder(decompress(
+				getRunLengthByColumn(array), path));
 
-            }
-        }
-        System.out.println("the Eight bit");
-        getRunLengthByRow(array);
-        getRunLengthByColumn(array);
-        getRunLengthZigzag(array);
-        createCompressedFile(getRunLengthByRow(array),fileName);
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				int Pixel = array[x][y] << 16 | array[x][y] << 8 | array[x][y];
+				out.setRGB(x, y, tempo[x][y]);
+			}
 
-        //getRunLength(data);
-        //drawHistogram(data);
-        try {
-            BufferedImage bufferImage2 = new BufferedImage(w, h, BufferedImage.TYPE_BYTE_GRAY);
-            for (int y = 0; y < h; y++) {
-                for (int x = 0; x < w; x++) {
-                    int Pixel = array[x][y] << 16 | array[x][y] << 8 | array[x][y];
-                    bufferImage2.setRGB(x, y, array[x][y]);
+		}
 
-                }
-            }
-            Graphics g = bufferImage2.getGraphics();
-            g.drawImage(bufferImage2, h, h, null);
-            g.dispose();
-            ImageIO.write(bufferImage2, "bmp", new File("D:\\saved8.bmp"));
-        } catch (Exception ee) {
-            ee.printStackTrace();
-        }
+		Graphics2D g = out.createGraphics();
+		g.drawImage(out, 0, 0, null);
+		g.dispose();
+		ImageIO.write(in, "bmp", new File("./4bits/4bitColumn" + fileName));
+	}
 
-    }
+	public void fourBitsBMPsRowByRow(String path) throws IOException {
 
-    public static ArrayList<int[]> imageHistogram(BufferedImage input) {
+		BufferedImage in = ImageIO.read(new File(path));
+		String fileName = new File(path).getName();
+		int w = in.getWidth(), h = in.getHeight();
+		int[][] array = new int[w][h];
+		double[] data = new double[w * h];
+		int counter = 0;
+		for (int j = 0; j < w; j++) {
+			for (int k = 0; k < h; k++) {
+				array[j][k] = in.getRGB(j, k);
+				data[counter] = in.getRGB(j, k);
+				counter++;
+			}
+		}
+		System.out.println("___****the Four bit By Row****___");
+		createCompressedFile(getRunLengthByRow(array), path);
+		drawHistogram(data, fileName);
+		byte[] v = new byte[1 << 4];
+		for (int i = 0; i < v.length; ++i) {
+			v[i] = (byte) (i * 4);
+		}
+		ColorModel cm = new IndexColorModel(4, v.length, v, v, v);
+		WritableRaster wr = cm.createCompatibleWritableRaster(w, h);
+		BufferedImage out = new BufferedImage(cm, wr, false, null);
+		int[][] tempo = rowByRowReOdrder(decompress(getRunLengthByRow(array),
+				path));
 
-        int[] rhistogram = new int[256];
-        int[] ghistogram = new int[256];
-        int[] bhistogram = new int[256];
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				int Pixel = array[x][y] << 16 | array[x][y] << 8 | array[x][y];
+				out.setRGB(x, y, tempo[x][y]);
+			}
 
-        for (int i = 0; i < rhistogram.length; i++) {
-            rhistogram[i] = 0;
-        }
-        for (int i = 0; i < ghistogram.length; i++) {
-            ghistogram[i] = 0;
-        }
-        for (int i = 0; i < bhistogram.length; i++) {
-            bhistogram[i] = 0;
-        }
+		}
 
-        for (int i = 0; i < input.getWidth(); i++) {
-            for (int j = 0; j < input.getHeight(); j++) {
+		Graphics2D g = out.createGraphics();
+		g.drawImage(out, 0, 0, null);
+		g.dispose();
+		ImageIO.write(in, "bmp", new File("./4bits/4bitByRow" + fileName));
+	}
 
-                int red = new Color(input.getRGB(i, j)).getRed();
-                int green = new Color(input.getRGB(i, j)).getGreen();
-                int blue = new Color(input.getRGB(i, j)).getBlue();
+	public void oneBitsBMPsZigzag(String path) throws IOException {
 
-                // Increase the values of colors
-                rhistogram[red]++;
-                ghistogram[green]++;
-                bhistogram[blue]++;
+		System.out.println("Name of file is !!" + new File(path).getName());
+		String fileName = new File(path).getName();
+		BufferedImage in = ImageIO.read(new File(path));
+		int w = in.getWidth(), h = in.getHeight();
+		int[][] array = new int[w][h];
+		double[] data = new double[w * h];
+		int counter = 0;
+		for (int j = 0; j < w; j++) {
+			for (int k = 0; k < h; k++) {
+				array[j][k] = in.getRGB(j, k);
+				data[counter] = in.getRGB(j, k);
+				counter++;
+			}
+		}
+		System.out.println("___****The One bit Zigzag****___");
+		createCompressedFile(getRunLengthZigzag(array), path);
+		drawHistogram(data, fileName);
 
-            }
-        }
+		System.out.println("finish");
+		byte[] v = new byte[1 << 8];
 
-        ArrayList<int[]> hist = new ArrayList<int[]>();
-        hist.add(rhistogram);
-        hist.add(ghistogram);
-        hist.add(bhistogram);
+		for (int i = 0; i < v.length; ++i) {
+			v[i] = (byte) (i * 17);
+		}
+		Color[] colors = { Color.red, Color.green, Color.yellow, Color.black };
+		byte[] reds = new byte[4];
+		byte[] greens = new byte[4];
+		byte[] blues = new byte[4];
+		for (int i = 0; i < colors.length; i++) {
+			reds[i] = (byte) colors[i].getRed();
+			greens[i] = (byte) colors[i].getGreen();
+			blues[i] = (byte) colors[i].getBlue();
+		}
+		ColorModel cm = new IndexColorModel(1, 2, reds, reds, reds);
+		WritableRaster wr = cm.createCompatibleWritableRaster(w, h);
+		BufferedImage out = new BufferedImage(cm, wr, false, null);
+		int index = 0;
+		int[][] tempo = zigzagReorder(decompress(getRunLengthZigzag(array),
+				path));
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				int Pixel = array[x][y] << 16 | array[x][y] << 8 | array[x][y];
+				index++;
+				out.setRGB(x, y, array[x][y]);
+			}
+		}
 
-        return hist;
+		Graphics2D g = out.createGraphics();
+		g.drawImage(out, 0, 0, null);
+		g.dispose();
+		ImageIO.write(out, "bmp", new File("./1bit/1bitZigzag" + fileName));
+	}
 
-    }
+	public void oneBitsBMPsColumn(String path) throws IOException {
 
-    public void drawHistogram(double[] data) {
-        //double[] dest = new double[data[0].length*data[1].length];
-        //System.out.print("Source Array length" + data.length + "   while destination array length is:" + dest.length);
-        SimpleHistogramDataset dataset = null;
-        //int index=0;
-        //for (int i = 0; i < data[0].length; i++) {
-        //    for (int x = 0; x < data[1].length; x++) {
-        //        dest[index] = data[x][i];
-        //        index++;
-                //System.out.print(index);
-                //System.out.println(" and the value the holds is"+dest[index-1]);
-                //dataset.addBin(new SimpleHistogramBin(dest[i][x],dest[x][i]));
-        //        System.out.println("Data Array valu"+data[x][i]);
-        //        System.out.println("Dest Array valu"+dest[index-1]);
-        //    }
-            //System.out.println("Dest Array valu"+dest[index-1]);
-            
-        //}
-        //testing purposes
-        HistogramDataset histogramdataset = new HistogramDataset();
-        histogramdataset.addSeries("H1", data, 255,0,255.0);
-        //end of added shit
+		System.out.println("Name of file is !!" + new File(path).getName());
+		String fileName = new File(path).getName();
+		BufferedImage in = ImageIO.read(new File(path));
+		int w = in.getWidth(), h = in.getHeight();
 
-        //double[][] valuepairs = dest;
-        //DefaultXYDataset set = new DefaultXYDataset();
-        //set.addSeries("Values", dest);
-        //XYBarDataset barset = new XYBarDataset(set, 0.8);
-        JFreeChart chart1 = ChartFactory.createHistogram(
-                "Histogram", "X-Axis", "Y-Axis", histogramdataset, PlotOrientation.VERTICAL, true, true, false);
-        
-        //JFreeChart chart = ChartFactory.createXYBarChart(
-        //        "Bars from arrays", "x", false, "y",
-        //        barset, PlotOrientation.VERTICAL, true, true, false);
-        JFrame frame = new JFrame("Test");
-        frame.setContentPane(new ChartPanel(chart1));
-        frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
-        frame.pack();
-        frame.setVisible(true);
-    }
-    
-    public byte[] getRunLengthZigzag(int [][] imageByteArray){
-    	System.out.println("Getting run lenght by Zigzag");
-        ByteArrayOutputStream dest = new ByteArrayOutputStream();  
-        byte lastByte = (byte) imageByteArray[0][0];
-        int matchCount = 1;
-        System.out.println("Length of array : "+imageByteArray[0].length * imageByteArray[1].length);
-        int count =0;    	    	
-    	int i=0,j=0;  
-    	int r=0;
-    	int c=0; 
-    	int dir=0;
+		int[][] array = new int[w][h];
+		double[] data = new double[w * h];
+		int counter = 0;
+		for (int j = 0; j < w; j++) {
+			for (int k = 0; k < h; k++) {
+				array[j][k] = in.getRGB(j, k);
+				data[counter] = in.getRGB(j, k);
+				counter++;
+			}
+		}
+		System.out.println("___****The One bit By Column****____");
+
+		createCompressedFile(getRunLengthByColumn(array), path);
+		drawHistogram(data, fileName);
+
+		System.out.println("finish");
+		byte[] v = new byte[1 << 8];
+
+		for (int i = 0; i < v.length; ++i) {
+			v[i] = (byte) (i * 17);
+		}
+		Color[] colors = { Color.red, Color.green, Color.yellow, Color.black };
+		byte[] reds = new byte[4];
+		byte[] greens = new byte[4];
+		byte[] blues = new byte[4];
+		for (int i = 0; i < colors.length; i++) {
+			reds[i] = (byte) colors[i].getRed();
+			greens[i] = (byte) colors[i].getGreen();
+			blues[i] = (byte) colors[i].getBlue();
+		}
+		ColorModel cm = new IndexColorModel(1, 2, reds, reds, reds);
+		WritableRaster wr = cm.createCompatibleWritableRaster(w, h);
+		BufferedImage out = new BufferedImage(cm, wr, false, null);
+		int index = 0;
+		// int[][] tempo =
+		// rowByRowReOdrder(decompress(getRunLengthByRow(array),fileName));
+		int[][] tempo = columnByColumnOdrder(decompress(
+				getRunLengthByColumn(array), path));
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				int Pixel = array[x][y] << 16 | array[x][y] << 8 | array[x][y];
+				index++;
+				out.setRGB(x, y, tempo[x][y]);
+			}
+		}
+
+		Graphics2D g = out.createGraphics();
+		g.drawImage(out, 0, 0, null);
+		g.dispose();
+		ImageIO.write(out, "bmp", new File("./1bit/1bitColumn" + fileName));
+	}
+
+	public void oneBitsBMPsRowByRow(String path) throws IOException {
+
+		System.out.println("Name of file is !!"
+				+ new File("D:\\baboon_BW.bmp").getName());
+		String fileName = new File("D:\\baboon_BW.bmp").getName();
+		BufferedImage in = ImageIO.read(new File(path));
+		int w = in.getWidth(), h = in.getHeight();
+
+		int[][] array = new int[w][h];
+		int counter = 0;
+		double[] data = new double[w * h];
+		for (int j = 0; j < w; j++) {
+			for (int k = 0; k < h; k++) {
+				array[j][k] = in.getRGB(j, k);
+				data[counter] = in.getRGB(j, k);
+				counter++;
+
+			}
+		}
+		System.out.println("___****The One bit by Row****___");
+
+		createCompressedFile(getRunLengthByRow(array), path);
+		drawHistogram(data, fileName);
+
+		System.out.println("finish");
+		byte[] v = new byte[1 << 8];
+
+		for (int i = 0; i < v.length; ++i) {
+			v[i] = (byte) (i * 17);
+			// System.out.println(v[i]);
+		}
+		Color[] colors = { Color.red, Color.green, Color.yellow, Color.black };
+		byte[] reds = new byte[4];
+		byte[] greens = new byte[4];
+		byte[] blues = new byte[4];
+		for (int i = 0; i < colors.length; i++) {
+			reds[i] = (byte) colors[i].getRed();
+			greens[i] = (byte) colors[i].getGreen();
+			blues[i] = (byte) colors[i].getBlue();
+		}
+		ColorModel cm = new IndexColorModel(1, 2, reds, reds, reds);
+		WritableRaster wr = cm.createCompatibleWritableRaster(w, h);
+		BufferedImage out = new BufferedImage(cm, wr, false, null);
+		int index = 0;
+		int[][] tempo = rowByRowReOdrder(decompress(getRunLengthByRow(array),
+				path));
+		for (int y = 0; y < h; y++) {
+			for (int x = 0; x < w; x++) {
+				int Pixel = array[x][y] << 16 | array[x][y] << 8 | array[x][y];
+				index++;
+				out.setRGB(x, y, tempo[x][y]);
+			}
+		}
+		Graphics2D g = out.createGraphics();
+		g.drawImage(out, 0, 0, null);
+		g.dispose();
+		ImageIO.write(out, "bmp", new File("./1bit/1bitRow" + fileName));
+	}
+
+	public void eightBitsBMPsZigzag(String path) throws IOException {
+		String fileName = new File(path).getName();
+		BufferedImage img = ImageIO.read(new File(path));
+		int w = img.getWidth();
+		int h = img.getHeight();
+		int[][] array = new int[w][h];
+		double[] data = new double[w * h];
+		int counter = 0;
+		for (int j = 0; j < w; j++) {
+			for (int k = 0; k < h; k++) {
+				array[j][k] = img.getRGB(j, k);
+				data[counter] = img.getRGB(j, k);
+				counter++;
+
+			}
+		}
+		System.out.println("___****the Eight bit Zigzag****___");
+		System.out.println("File Name: " + fileName);
+		createCompressedFile(getRunLengthZigzag(array), path);
+		drawHistogram(data, fileName);
+		try {
+			BufferedImage bufferImage2 = new BufferedImage(w, h,
+					BufferedImage.TYPE_BYTE_GRAY);
+			int[][] tempo = zigzagReorder(decompress(getRunLengthZigzag(array),
+					path));
+			for (int y = 0; y < h; y++) {
+				for (int x = 0; x < w; x++) {
+					int Pixel = array[x][y] << 16 | array[x][y] << 8
+							| array[x][y];
+					bufferImage2.setRGB(x, y, array[x][y]);
+				}
+			}
+			Graphics g = bufferImage2.getGraphics();
+			g.drawImage(bufferImage2, h, h, null);
+			g.dispose();
+			ImageIO.write(bufferImage2, "bmp", new File("./8bits/8bitZigzag"
+					+ fileName));
+		} catch (Exception ee) {
+			ee.printStackTrace();
+		}
+
+	}
+
+	public void eightBitsBMPsColumn(String path) throws IOException {
+		String fileName = new File(path).getName();
+		BufferedImage img = ImageIO.read(new File(path));
+		int w = img.getWidth();
+		int h = img.getHeight();
+		int[][] array = new int[w][h];
+		double[] data = new double[w * h];
+		int counter = 0;
+		for (int j = 0; j < w; j++) {
+			for (int k = 0; k < h; k++) {
+				array[j][k] = img.getRGB(j, k);
+				data[counter] = img.getRGB(j, k);
+				// System.out.println("RGB Array"+array[j][j]);
+				counter++;
+
+			}
+		}
+		System.out.println("___****the Eight bit by Column****___");
+		System.out.println("File Name: " + fileName);
+		createCompressedFile(getRunLengthByColumn(array), path);
+		drawHistogram(data, fileName);
+		try {
+			BufferedImage bufferImage2 = new BufferedImage(w, h,
+					BufferedImage.TYPE_BYTE_GRAY);
+			int[][] tempo = columnByColumnOdrder(decompress(
+					getRunLengthByColumn(array), path));
+			for (int y = 0; y < h; y++) {
+				for (int x = 0; x < w; x++) {
+					int Pixel = array[x][y] << 16 | array[x][y] << 8
+							| array[x][y];
+					bufferImage2.setRGB(x, y, tempo[x][y]);
+				}
+			}
+			Graphics g = bufferImage2.getGraphics();
+			g.drawImage(bufferImage2, h, h, null);
+			g.dispose();
+			ImageIO.write(bufferImage2, "bmp", new File("./8bits/8bitColumn"
+					+ fileName));
+		} catch (Exception ee) {
+			ee.printStackTrace();
+		}
+
+	}
+
+	public void eightBitsBMPsRowByRow(String path) throws IOException {
+		String fileName = new File(path).getName();
+		BufferedImage img = ImageIO.read(new File(path));
+		int w = img.getWidth();
+		int h = img.getHeight();
+		int[][] array = new int[w][h];
+		double[] data = new double[w * h];
+		int counter = 0;
+		for (int j = 0; j < w; j++) {
+			for (int k = 0; k < h; k++) {
+				array[j][k] = img.getRGB(j, k);
+				data[counter] = img.getRGB(j, k);
+				counter++;
+
+			}
+		}
+		System.out.println("___****the Eight bit By Row****___");
+		System.out.println("File Name: " + fileName);
+		createCompressedFile(getRunLengthByRow(array), path);
+		drawHistogram(data, fileName);
+		try {
+			BufferedImage bufferImage2 = new BufferedImage(w, h,
+					BufferedImage.TYPE_BYTE_GRAY);
+			int[][] tempo = rowByRowReOdrder(decompress(
+					getRunLengthByRow(array), path));
+			for (int y = 0; y < h; y++) {
+				for (int x = 0; x < w; x++) {
+					int Pixel = array[x][y] << 16 | array[x][y] << 8
+							| array[x][y];
+					bufferImage2.setRGB(x, y, tempo[x][y]);
+				}
+			}
+			Graphics g = bufferImage2.getGraphics();
+			g.drawImage(bufferImage2, h, h, null);
+			g.dispose();
+			ImageIO.write(bufferImage2, "bmp", new File("./8bits/8bitRow"
+					+ fileName));
+		} catch (Exception ee) {
+			ee.printStackTrace();
+		}
+
+	}
+
+	public void drawHistogram(double[] data, String name) {
+
+		HistogramDataset histogramdataset = new HistogramDataset();
+		histogramdataset.setType(HistogramType.FREQUENCY);
+		histogramdataset.addSeries(name, data, 17);
+		JFreeChart chart1 = ChartFactory.createHistogram(name, "X-Axis",
+				"Y-Axis", histogramdataset, PlotOrientation.VERTICAL, true,
+				true, false);
+		JFrame frame = new JFrame(name);
+		frame.setContentPane(new ChartPanel(chart1));
+		frame.setDefaultCloseOperation(JFrame.EXIT_ON_CLOSE);
+		frame.pack();
+		frame.setVisible(true);
+	}
+
+	public int[] getRunLengthZigzag(int[][] imageByteArray) {
+		// System.out.println("Getting run lenght by Zigzag");
+		IntArrayOutputStream dest = new IntArrayOutputStream();
+		int lastByte = imageByteArray[0][0];
+		int matchCount = 1;
+		int count = 0;
+		int r = 0;
+		int c = 0;
+		int dir = 0;
 		int rows = imageByteArray[0].length;
 		int cols = imageByteArray[1].length;
-    	while(r< imageByteArray[0].length && c< imageByteArray[1].length)
-    	{
-    	//System.out.println( r+" -> "+c);
-          byte thisByte = (byte) imageByteArray[r][c];
-          if (lastByte == thisByte) {
-              matchCount++;
-          }
-          else {
-              dest.write((byte)matchCount);  
-              dest.write((byte)lastByte);
-              //System.out.println("Number of repetitions: "+ matchCount);
-              count++;                
-              matchCount=1;
-              lastByte = thisByte;                
-          }     
-    		if (dir == 1) {
-    					if (c == cols - 1) {
-    						r++;
-    						dir = -1;
-    					} else if (r == 0) {
-    						c++;
-    						dir = -1;
-    					} else {
-    						r--;
-    						c++;
-    					}
-    				} else {
-    					if (r == rows - 1) {
-    						c++;
-    						dir = 1;
-    					} else if (c == 0) {
-    						r++;
-    						dir = 1;
-    					} else {
-    						c--;
-    						r++;
-    					}
-    				}
-    			}	
-    	    	 
-//        while(i < imageByteArray.length){  
-//     
-//            System.out.println( i+" -> "+j);
-//            byte thisByte = (byte) imageByteArray[i][j];
-//            if (lastByte == thisByte) {
-//                matchCount++;
-//            }
-//            else {
-//                dest.write((byte)matchCount);  
-//                dest.write((byte)lastByte);
-//                //System.out.println("Number of repetitions: "+ matchCount);
-//                count++;                
-//                matchCount=1;
-//                lastByte = thisByte;                
-//            }     
-//            if(i==imageByteArray.length-1){  
-//                i = j+1; j = imageByteArray.length-1;  
-//            }  
-//            else if(j==0){  
-//                j = i+1;   
-//                i = 0;  
-//            }  
-//            else {  
-//                i++;  
-//                j--;  
-//            }  
-//        }  
-        System.out.println("Number of records: "+ count );
-        dest.write((byte)matchCount);  
-        dest.write((byte)lastByte);
-        System.out.println("**** Finished Getting run lenght by Zigzag ****");
-        return dest.toByteArray();
-    }
-    
-    
-    
-    public byte[] getRunLengthByRow(int [][] imageByteArray){
-    	System.out.println("Getting run lenght by row");
-        ByteArrayOutputStream dest = new ByteArrayOutputStream();  
-        byte lastByte = (byte) imageByteArray[0][0];
-        int matchCount = 1;
-        System.out.println("Length of array : "+imageByteArray[0].length * imageByteArray[1].length);
-        int count =0;
-        //byte [][]myrle = new byte[262144][262144];
-        for(int i=1; i < imageByteArray[0].length; i++){
-        	for (int j = 0; j < imageByteArray[1].length; j++) {
-				
-			
-            byte thisByte = (byte) imageByteArray[i][j];
-            //System.out.print("Array value: "+imageByteArray[i][j]);
-            //System.out.println("  This byte value: "+thisByte);
-            if (lastByte == thisByte) {
-                matchCount++;
-            }
-            else {
-                //myrle.concat(Integer.toString(matchCount));
-                //myrle.concat(Integer.toString(lastByte));
-                dest.write((byte)matchCount);  
-                dest.write((byte)lastByte);
-                //System.out.print(lastByte);
-                //System.out.println("  ---Number of repetitions: "+ matchCount);
-                count++;
-                
-                matchCount=1;
-                lastByte = thisByte;
-                
-            }
-        	}
-        	
-        }
-        
-       
-        System.out.println("Number of records: "+ count );
-        dest.write((byte)matchCount);  
-        dest.write((byte)lastByte);
-        System.out.println("**** Finished Getting run lenght by row ****");
-        return dest.toByteArray();
-    }
-    
-    
-    public byte[] getRunLengthByColumn(int [][] imageByteArray){
-    	System.out.println("Getting run lenght by Column");
-        ByteArrayOutputStream dest = new ByteArrayOutputStream();  
-        byte lastByte = (byte) imageByteArray[0][0];
-        int matchCount = 1;
-        System.out.println("Length of array : "+imageByteArray[0].length * imageByteArray[1].length);
-        int count =0;
-        for(int i=1; i < imageByteArray[0].length; i++){
-        	for (int j = 0; j < imageByteArray[1].length; j++) {
-				
-			
-            byte thisByte = (byte) imageByteArray[j][i];
-            if (lastByte == thisByte) {
-                matchCount++;
-            }
-            else {
-                dest.write((byte)matchCount);  
-                dest.write((byte)lastByte);
-                //System.out.println("Number of repetitions: "+ matchCount);
-                count++;
-                
-                matchCount=1;
-                lastByte = thisByte;
-                
-            }
-        	}
-        }
-        System.out.println("Number of records: "+ count );
-        dest.write((byte)matchCount);  
-        dest.write((byte)lastByte);
-        System.out.println("**** Finished Getting run lenght by Column ****");
-        return dest.toByteArray();
-
-
-    }
-
-    
-    
-	  	public String coderRLE(String text) {
-		        String res = new String();
-		        char[] charArray = text.toCharArray();
-		        char caractere = 0;
-		        int num = 0;
-		        int i = 0;
-		        for (char c : charArray) {
-		            if (c != caractere && i != 0) {
-		                if (num >= 2) {
-		                    res += num;
-		                    res += caractere;
-		                } else {
-		                    res += caractere;
-		                }
-		                num = 1;
-		            } else {
-		                num++;
-		            }
-		            caractere = c;
-		            i++;
-		        }
-		        if (num >= 2) {
-		            res += num;
-		            res += caractere;
-		        } else {
-		            res += caractere;
-		        }
-		        return res;
-		}
-		
-		    
-		public String decoderRLE(String text) {
-		        String res = new String();
-		        char[] charArray = text.toCharArray();
-		        for (int i = 0;i<charArray.length-1;i++) {
-		            char s = charArray[i];
-		            if (!Character.isDigit(s)) {
-		                res += s;
-		            } else {
-		                int num = Integer.parseInt(String.valueOf(s));
-		                for (int j = 0; j < num - 1; j++) {
-		                    res += charArray[i+1];
-		                }
-		            }
-		        }
-		        return res;
-		    }
-		
-		public void createCompressedFile(byte [] rle, String fileName)
-		{
-			FileOutputStream fop = null;
-			File file;
-			file = new File("d:/"+fileName+".tmp");
-			try {
-				fop = new FileOutputStream(file);
-
-				try {
-					fop.write(rle);
-					fop.flush();
-					fop.close();
-				} catch (IOException e) {
-					// TODO Auto-generated catch block
-					e.printStackTrace();
+		while (r < imageByteArray[0].length && c < imageByteArray[1].length) {
+			// System.out.println( r+" -> "+c);
+			int thisByte = imageByteArray[r][c];
+			if (lastByte == thisByte) {
+				matchCount++;
+			} else {
+				dest.write(matchCount);
+				dest.write(lastByte);
+				count++;
+				matchCount = 1;
+				lastByte = thisByte;
+			}
+			if (dir == 1) {
+				if (c == cols - 1) {
+					r++;
+					dir = -1;
+				} else if (r == 0) {
+					c++;
+					dir = -1;
+				} else {
+					r--;
+					c++;
 				}
-
-			} catch (FileNotFoundException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+			} else {
+				if (r == rows - 1) {
+					c++;
+					dir = 1;
+				} else if (c == 0) {
+					r++;
+					dir = 1;
+				} else {
+					c--;
+					r++;
+				}
 			}
- 
-		
-			try
-	        {
-	            ObjectOutputStream myStream = new ObjectOutputStream(new FileOutputStream("d:/"+fileName+".dat"));
-	            myStream.writeObject(rle);
-	            myStream.close();
-	        } 
-	        catch (FileNotFoundException e) 
-	        {
-	        } 
-	        catch (IOException e) 
-	        {
-	        }
-			try {
-				
-				FileOutputStream output = new FileOutputStream(new File("D:\\"+ fileName+".jrle"));
-				IOUtils.write(rle, output);
-			} catch (FileNotFoundException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
-			} catch (IOException e) {
-				// TODO Auto-generated catch block
-				e.printStackTrace();
+		}
+		System.out.println("Compression Ratio =  " + -1
+				* (((count * 100) / 262144) - 100));
+		// System.out.println("Number of records: " + count);
+		dest.write(matchCount);
+		dest.write(lastByte);
+		// System.out.println("**** Finished Getting run lenght by Zigzag ****");
+		return dest.getIntArray();
+	}
+
+	public int[] getRunLengthByRow(int[][] imageByteArray) {
+		// System.out.println("Getting run lenght by row");
+		IntArrayOutputStream dest = new IntArrayOutputStream();
+		int lastByte = imageByteArray[0][0];
+		int matchCount = 1;
+
+		int count = 0;
+		for (int i = 0; i < imageByteArray[0].length; i++) {
+			for (int j = 0; j < imageByteArray[0].length; j++) {
+
+				int thisByte = imageByteArray[i][j];
+				// System.out.print("Array value: "+imageByteArray[i][j]);
+				// System.out.println("  This byte value: "+thisByte);
+				if (lastByte == thisByte) {
+					matchCount++;
+				} else {
+					dest.write(matchCount);
+					dest.write(lastByte);
+
+					count++;
+
+					matchCount = 1;
+					lastByte = thisByte;
+
+				}
 			}
-			
-		}
-		
-		public void readCompressedFile()
-		{
-//			try {
-//				byte[] bytes = IOUtils.toByteArray();
-//			} catch (FileNotFoundException e) {
-//				// TODO Auto-generated catch block
-//				e.printStackTrace();
-//			} catch (IOException e) {
-//				// TODO Auto-generated catch block
-//				e.printStackTrace();
-//			}
-			
-			
-		}
-		
 
+		}
+		System.out.println("Compression Ratio =  " + -1
+				* (((count * 100) / 262144) - 100));
+		// System.out.println("Number of records: " + count);
+		dest.write(matchCount);
+		dest.write(lastByte);
+		int[] rl = new int[dest.getIntArray().length];
+		rl = dest.getIntArray();
+		int check = 0;
+		for (int i = 0; i < rl.length; i = i + 2) {
+			check += rl[i];
+			// System.out.println(rl[i]);
 
-	public void decompress ()
-	{
-        // reading of the binary file and placing it into an array 
-        try
-        {
-            ObjectInputStream mySecondStream = new ObjectInputStream(new FileInputStream("D:\\baboon_BW.bmp.dat"));
-            byte[] array = (byte[]) mySecondStream.readObject();
-            for(int i=0; i<array.length; i++)
-            {
-                System.out.println(array[i]);
-            }
-        } 
-        catch (FileNotFoundException e) 
-        {
-        } catch (IOException e) 
-        {
-        } catch (ClassNotFoundException e) {
-            // TODO Auto-generated catch block
-            e.printStackTrace();
-        }
- 
+		}
+
+		// System.out.println("**** Finished Getting run lenght by row ****");
+		return dest.getIntArray();
+
+	}
+
+	public int[] getRunLengthByColumn(int[][] imageByteArray) {
+		// System.out.println("Getting run lenght by Column");
+		IntArrayOutputStream dest = new IntArrayOutputStream();
+		int lastByte = imageByteArray[0][0];
+		int matchCount = 1;
+		int count = 0;
+		for (int i = 1; i < imageByteArray[0].length; i++) {
+			for (int j = 0; j < imageByteArray[1].length; j++) {
+
+				int thisByte = imageByteArray[j][i];
+				if (lastByte == thisByte) {
+					matchCount++;
+				} else {
+					dest.write(matchCount);
+					dest.write(lastByte);
+					// System.out.println("Number of repetitions: "+
+					// matchCount);
+					count++;
+
+					matchCount = 1;
+					lastByte = thisByte;
+
+				}
+			}
+		}
+		// System.out.println("Number of records: " + count);
+		System.out.println("Compression Ratio =  " + -1
+				* (((count * 100) / 262144) - 100));
+		dest.write(matchCount);
+		dest.write(lastByte);
+		// System.out.println("**** Finished Getting run lenght by Column ****");
+		return dest.getIntArray();
+
+	}
+
+	public void createCompressedFile(int[] rle, String path) {
+		int check = 0;
+		for (int i = 0; i < rle.length; i++) {
+			check += rle[i];
+			i++;
+		}
+		int[] compressed = new int[rle.length + 1024];// could need more
+		IntegerCODEC codec = new Composition(new FastPFOR(), new VariableByte());
+		// compressing
+		IntWrapper inputoffset = new IntWrapper(0);
+		IntWrapper outputoffset = new IntWrapper(0);
+		codec.compress(rle, inputoffset, rle.length, compressed, outputoffset);
+		// System.out.println("compressed unsorted integers from " + rle.length
+		// * 4 / 1024 + "KB to " + outputoffset.intValue() * 4 / 1024
+		// + "KB");
+		compressed = Arrays.copyOf(compressed, outputoffset.intValue());
+		// System.out.println("compressed array size" + compressed.length);
+
+		try {
+			ObjectOutputStream myStream = new ObjectOutputStream(
+					new FileOutputStream(path + ".dat"));
+			myStream.writeObject(compressed);
+			myStream.close();
+		} catch (FileNotFoundException e) {
+		} catch (IOException e) {
+		}
+
+	}
+
+	public int[] decompress(int[] rle, String path) {
+		int[] recovered = new int[rle.length];
+		// reading of the binary file and placing it into an array
+		try {
+			ObjectInputStream mySecondStream = new ObjectInputStream(
+					new FileInputStream(path + ".dat"));
+			int[] array = (int[]) mySecondStream.readObject();
+			for (int i = 0; i < array.length; i++) {
+				// System.out.println(array[i]);
+			}
+			mySecondStream.close();
+			IntegerCODEC codec = new Composition(new FastPFOR(),
+					new VariableByte());
+
+			IntWrapper recoffset = new IntWrapper(0);
+			codec.uncompress(array, new IntWrapper(0), array.length, recovered,
+					recoffset);
+
+			if (Arrays.equals(rle, recovered))
+				System.out.println("data is recovered without loss");
+			else
+				throw new RuntimeException("bug"); // could use assert
+			System.out.println();
+		} catch (FileNotFoundException e) {
+		} catch (IOException e) {
+		} catch (ClassNotFoundException e) {
+			// TODO Auto-generated catch block
+			e.printStackTrace();
+		}
+		for (int x = 0; x < recovered.length; x++) {
+			// System.out.println("Value of X: "+recovered[x]);
+		}
+		// rowByRowReOdrder(recovered);
+		return recovered;
+
+	}
+
+	public int[][] rowByRowReOdrder(int[] rle) {
+		int[] temp = new int[262145];
+		int x = 0;
+		int counter = 0;
+		int check = 0;
+		while (x < rle.length) {
+			for (int y = 0; y < rle[x]; y++) {
+				temp[counter] = rle[x + 1];
+
+				// System.out.println("Counter val = "+counter);
+				counter++;
+			}
+			x = x + 2;
+		}
+
+		int index = 0;
+		int[][] array = new int[512][512];
+		for (int i = 0; i < array.length; i++) {
+			for (int j = 0; j < array.length; j++) {
+				array[i][j] = temp[index];
+				index++;
+			}
+		}
+		return array;
+	}
+
+	public int[][] columnByColumnOdrder(int[] rle) {
+		int[] temp = new int[262145];
+		int x = 0;
+		int counter = 0;
+		int check = 0;
+		while (x < rle.length) {
+			for (int y = 0; y < rle[x]; y++) {
+				temp[counter] = rle[x + 1];
+
+				// System.out.println("Counter val = "+counter);
+				counter++;
+			}
+			x = x + 2;
+		}
+
+		int index = 0;
+		int[][] array = new int[512][512];
+		for (int i = 0; i < array.length; i++) {
+			for (int j = 0; j < array.length; j++) {
+				array[j][i] = temp[index];
+				index++;
+			}
+		}
+		return array;
+	}
+
+	public int[][] zigzagReorder(int[] rle) {
+		int[] temp = new int[262145];
+		int x = 0;
+		int counter = 0;
+		while (x < rle.length) {
+			for (int y = 0; y < rle[x]; y++) {
+				temp[counter] = rle[x + 1];
+
+				// System.out.println("Counter val = "+counter);
+				counter++;
+			}
+			x = x + 2;
+		}
+
+		int index = 0;
+		int[][] array = new int[512][512];
+		int r = 0;
+		int c = 0;
+		int dir = 0;
+		int rows = 512;
+		int cols = 512;
+		while (r < 512 && c < 512) {
+			// System.out.println( r+" -> "+c);
+			array[r][c] = temp[index];
+			index++;
+
+			if (dir == 1) {
+				if (c == cols - 1) {
+					r++;
+					dir = -1;
+				} else if (r == 0) {
+					c++;
+					dir = -1;
+				} else {
+					r--;
+					c++;
+				}
+			} else {
+				if (r == rows - 1) {
+					c++;
+					dir = 1;
+				} else if (c == 0) {
+					r++;
+					dir = 1;
+				} else {
+					c--;
+					r++;
+				}
+			}
+		}
+		return array;
+
 	}
 }
-//public String getRunLength(int[] imageByteArray){
-//  StringBuffer dest = new StringBuffer();        
-//  for(int i =0; i < imageByteArray.length; i++){
-//      int runlength = 1;
-//      while(i+1 < imageByteArray.length && imageByteArray[i] == imageByteArray[i+1]){
-//          runlength++;
-//          i++;
-//
-//      }     
-//
-//      System.out.println("Number of occurance : "+runlength);
-//      dest.append(runlength);  
-//
-//      dest.append(imageByteArray[i]);
-//
-//  }
-//  return dest.toString();
-//}
-

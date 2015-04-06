@@ -15,5 +15,7 @@
 	<classpathentry kind="lib" path="lib/orsoncharts-1.4-eval-nofx.jar"/>
 	<classpathentry kind="lib" path="lib/swtgraphics2d.jar"/>
 	<classpathentry kind="lib" path="lib/commons-io-2.4.jar"/>
+	<classpathentry kind="lib" path="lib/xbee-api-0.9.jar"/>
+	<classpathentry kind="lib" path="lib/JavaFastPFOR-0.1.2.jar"/>
 	<classpathentry kind="output" path="bin"/>
 </classpath>
